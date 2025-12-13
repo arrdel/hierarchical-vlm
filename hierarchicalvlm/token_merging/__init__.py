@@ -9,5 +9,16 @@ Implements:
 
 from . import motion
 from . import saliency
+from .token_merging import (
+    TokenSimilarity,
+    AdaptiveTokenMerger,
+    TemporalMergeScheduler,
+)
 
-__all__ = ["motion", "saliency"]
+__all__ = [
+    "motion",
+    "saliency",
+    "TokenSimilarity",
+    "AdaptiveTokenMerger",
+    "TemporalMergeScheduler",
+]

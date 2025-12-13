@@ -4,4 +4,18 @@ Saliency Analysis for Adaptive Token Merging
 Implements saliency-based token importance estimation.
 """
 
-__all__ = []
+from .saliency_detector import (
+    EdgeSaliency,
+    AttentionSaliency,
+    ColorSaliency,
+    MultiSaliencyFusion,
+    SaliencyDetector,
+)
+
+__all__ = [
+    'EdgeSaliency',
+    'AttentionSaliency',
+    'ColorSaliency',
+    'MultiSaliencyFusion',
+    'SaliencyDetector',
+]

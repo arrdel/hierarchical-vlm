@@ -118,7 +118,7 @@ If you use HierarchicalVLM, please cite:
 }
 ```
 
-## License
+<!-- ## License
 
 [Add your chosen license]
 
@@ -128,4 +128,4 @@ Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) fo
 
 ## Contact
 
-[Add your contact information]
+[Add your contact information] -->
