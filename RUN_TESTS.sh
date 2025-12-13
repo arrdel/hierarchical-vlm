@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 TEST_DIR="tests"
 TEST_FILE="test_attention.py"
 
-echo -e "${YELLOW}Prerequisites:${NC}"
+echo -e "${YELLOW}Prerequisites:${NC}" 
 echo "  - PyTorch installed"
 echo "  - Pytest installed"
 echo "  - All attention modules available"

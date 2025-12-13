@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""
-Multi-GPU Training script for HierarchicalVLM with pre-extracted ActivityNet features.
-
-Usage (single GPU):
-    python train_features.py --batch-size 32 --num-epochs 50
-
-Usage (multi-GPU with DDP):
-    torchrun --nproc_per_node=2 train_features.py --batch-size 32 --num-epochs 50
-"""
+"""Multi-GPU training with Weights & Biases integration."""
 
 import argparse
 import json
@@ -26,8 +18,9 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
+import wandb
+import numpy as np
 
-# Add project to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -41,72 +34,49 @@ logger = logging.getLogger(__name__)
 
 
 class FeatureTrainingConfig:
-    """Configuration for feature-based training."""
-
     def __init__(
         self,
-        # Data
         train_feature_dir="/media/scratch/adele/activitynet/ActivityNet-13/train/train",
         val_feature_dir="/media/scratch/adele/activitynet/ActivityNet-13/test/test",
         annotations_file="/media/scratch/adele/activitynet/ActivityNet-13/gt.json",
-        # Training
         batch_size=32,
-        num_epochs=100,
+        num_epochs=50,
         learning_rate=1e-4,
         weight_decay=1e-4,
-        # Model
         feature_dim=2048,
         hidden_dim=1024,
         num_attention_heads=8,
         num_layers=6,
-        # Computation
         num_workers=4,
-        # Output
         output_dir="./runs",
         log_steps=50,
         seed=42,
     ):
-        # Data
         self.train_feature_dir = train_feature_dir
         self.val_feature_dir = val_feature_dir
         self.annotations_file = annotations_file
-        
-        # Training
         self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        
-        # Model
         self.feature_dim = feature_dim
         self.hidden_dim = hidden_dim
         self.num_attention_heads = num_attention_heads
         self.num_layers = num_layers
-        
-        # Computation
         self.num_workers = num_workers
-        
-        # Output
         self.output_dir = output_dir
         self.log_steps = log_steps
         self.seed = seed
 
     def to_dict(self):
-        """Convert config to dictionary."""
         return {k: v for k, v in self.__dict__.items()}
 
 
 class FeatureVLMModel(nn.Module):
-    """Simple feature-based VLM model for action recognition."""
-
     def __init__(self, config: FeatureTrainingConfig):
         super().__init__()
         self.config = config
-        
-        # Feature projection
         self.feature_proj = nn.Linear(config.feature_dim, config.hidden_dim)
-        
-        # Transformer encoder
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=config.hidden_dim,
             nhead=config.num_attention_heads,
@@ -114,11 +84,7 @@ class FeatureVLMModel(nn.Module):
             batch_first=True,
             dropout=0.1,
         )
-        self.transformer = nn.TransformerEncoder(
-            encoder_layer, num_layers=config.num_layers
-        )
-        
-        # Classification head (for 200 activity classes in ActivityNet)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=config.num_layers)
         self.classifier = nn.Sequential(
             nn.LayerNorm(config.hidden_dim),
             nn.Dropout(0.1),
@@ -126,24 +92,16 @@ class FeatureVLMModel(nn.Module):
         )
         
     def forward(self, features, attention_mask=None):
-        """Forward pass."""
-        # Project features
-        x = self.feature_proj(features)  # (B, T, hidden_dim)
-        
-        # Apply transformer with attention mask
+        x = self.feature_proj(features)
         if attention_mask is not None:
             attn_mask = attention_mask == 0
             x = self.transformer(x, src_key_padding_mask=attn_mask)
         else:
             x = self.transformer(x)
-        
-        # Classify
-        logits = self.classifier(x)  # (B, T, 200)
-        return logits
+        return self.classifier(x)
 
 
-def train_epoch(model, train_loader, optimizer, device, config, rank=0):
-    """Train for one epoch."""
+def train_epoch(model, train_loader, optimizer, device, config, rank=0, epoch=0, use_wandb=False):
     model.train()
     total_loss = 0.0
     num_batches = 0
@@ -151,15 +109,12 @@ def train_epoch(model, train_loader, optimizer, device, config, rank=0):
     for batch_idx, batch in enumerate(train_loader):
         features = batch["features"].to(device)
         attention_masks = batch["attention_masks"].to(device)
-        
-        # Forward pass
         logits = model(features, attention_masks)
         loss = torch.mean(logits ** 2)
         
-        # Backward pass
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         
         total_loss += loss.item()
@@ -168,17 +123,27 @@ def train_epoch(model, train_loader, optimizer, device, config, rank=0):
         if rank == 0 and (batch_idx + 1) % config.log_steps == 0:
             avg_loss = total_loss / num_batches
             logger.info(
-                f"Batch [{batch_idx + 1}/{len(train_loader)}] Loss: {avg_loss:.4f}"
+                f"Epoch {epoch + 1} | Batch [{batch_idx + 1}/{len(train_loader)}] | "
+                f"Loss: {avg_loss:.4f} | Grad: {grad_norm:.4f}"
             )
+            
+            if use_wandb:
+                wandb.log({
+                    "train/loss": loss.item(),
+                    "train/avg_loss": avg_loss,
+                    "train/batch": batch_idx + 1,
+                    "train/epoch": epoch + 1,
+                    "train/grad_norm": grad_norm,
+                    "train/lr": optimizer.param_groups[0]['lr'],
+                })
     
     return total_loss / num_batches
 
 
-def validate(model, val_loader, device, rank=0):
-    """Validate model."""
+def validate(model, val_loader, device, rank=0, epoch=0, use_wandb=False):
     model.eval()
     total_loss = 0.0
-    num_batches = 0
+    losses = []
     
     with torch.no_grad():
         for batch in val_loader:
@@ -186,52 +151,51 @@ def validate(model, val_loader, device, rank=0):
             attention_masks = batch["attention_masks"].to(device)
             logits = model(features, attention_masks)
             loss = torch.mean(logits ** 2)
-            
             total_loss += loss.item()
-            num_batches += 1
+            losses.append(loss.item())
     
-    return total_loss / num_batches
+    avg_val_loss = total_loss / len(losses)
+    
+    if rank == 0:
+        logger.info(f"Validation Epoch {epoch + 1} | Loss: {avg_val_loss:.4f}")
+        
+        if use_wandb:
+            wandb.log({
+                "val/loss": avg_val_loss,
+                "val/loss_min": min(losses),
+                "val/loss_max": max(losses),
+                "val/loss_std": np.std(losses),
+                "val/epoch": epoch + 1,
+            })
+    
+    return avg_val_loss
 
 
 def main():
-    """Main training loop."""
-    parser = argparse.ArgumentParser(description="Train HierarchicalVLM on features")
+    parser = argparse.ArgumentParser(description="Train HierarchicalVLM with W&B logging")
     
-    parser.add_argument(
-        "--train-data",
-        type=str,
-        default="/media/scratch/adele/activitynet/ActivityNet-13/train/train",
-        help="Path to training features",
-    )
-    parser.add_argument(
-        "--val-data",
-        type=str,
-        default="/media/scratch/adele/activitynet/ActivityNet-13/test/test",
-        help="Path to validation features",
-    )
-    parser.add_argument(
-        "--annotations",
-        type=str,
-        default="/media/scratch/adele/activitynet/ActivityNet-13/gt.json",
-        help="Path to ground truth annotations",
-    )
-    parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
-    parser.add_argument("--num-epochs", type=int, default=50, help="Number of epochs")
-    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
-    parser.add_argument("--weight-decay", type=float, default=1e-4, help="Weight decay")
-    parser.add_argument("--hidden-dim", type=int, default=1024, help="Hidden dimension")
-    parser.add_argument("--num-layers", type=int, default=6, help="Number of transformer layers")
-    parser.add_argument("--num-heads", type=int, default=8, help="Number of attention heads")
-    parser.add_argument("--num-workers", type=int, default=4, help="Number of workers")
-    parser.add_argument("--output-dir", type=str, default="./runs", help="Output directory")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--no-cuda", action="store_true", help="Disable CUDA")
+    parser.add_argument("--train-data", type=str, default="/media/scratch/adele/activitynet/ActivityNet-13/train/train")
+    parser.add_argument("--val-data", type=str, default="/media/scratch/adele/activitynet/ActivityNet-13/test/test")
+    parser.add_argument("--annotations", type=str, default="/media/scratch/adele/activitynet/ActivityNet-13/gt.json")
+    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--num-epochs", type=int, default=50)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--hidden-dim", type=int, default=1024)
+    parser.add_argument("--num-layers", type=int, default=6)
+    parser.add_argument("--num-heads", type=int, default=8)
+    parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--output-dir", type=str, default="./runs")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--no-cuda", action="store_true")
+    parser.add_argument("--wandb-project", type=str, default="hierarchical-vlm-features")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-run-name", type=str, default=None)
+    parser.add_argument("--disable-wandb", action="store_true")
     
     args = parser.parse_args()
-    
     torch.manual_seed(args.seed)
     
-    # Initialize DDP if running under torchrun
     use_ddp = "RANK" in os.environ
     if use_ddp:
         dist.init_process_group(backend="nccl")
@@ -249,7 +213,7 @@ def main():
     if rank == 0:
         logger.info(f"Using device: {device}")
         if use_ddp:
-            logger.info(f"DDP enabled: rank {rank}/{world_size}, local_rank {local_rank}")
+            logger.info(f"DDP: rank {rank}/{world_size}")
     
     config = FeatureTrainingConfig(
         train_feature_dir=args.train_data,
@@ -267,19 +231,32 @@ def main():
         seed=args.seed,
     )
     
-    # Create output directory
     if rank == 0:
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         config_file = output_dir / "config.json"
         with open(config_file, "w") as f:
             json.dump(config.to_dict(), f, indent=2)
-        logger.info(f"Config saved to {config_file}")
+        logger.info(f"Config: {config_file}")
     
     if use_ddp:
         dist.barrier()
     
-    # Create DataLoaders
+    use_wandb = rank == 0 and not args.disable_wandb
+    if use_wandb:
+        run_name = args.wandb_run_name or f"feature_training_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            name=run_name,
+            config=config.to_dict(),
+            tags=["multi-gpu", "activitynet", "features", "DDP", "verbose-logging"],
+        )
+        logger.info(f"✅ W&B: {wandb.run.url}")
+    else:
+        if rank == 0:
+            logger.info("W&B disabled")
+    
     if rank == 0:
         logger.info("Creating data loaders...")
     
@@ -352,14 +329,9 @@ def main():
         )
     
     if rank == 0:
-        logger.info(
-            f"Train loader: {len(train_loader)} batches ({len(train_loader.dataset)} samples)"
-        )
-        logger.info(
-            f"Val loader: {len(val_loader)} batches ({len(val_loader.dataset)} samples)"
-        )
+        logger.info(f"Train: {len(train_loader)} batches ({len(train_loader.dataset)} samples)")
+        logger.info(f"Val: {len(val_loader)} batches ({len(val_loader.dataset)} samples)")
     
-    # Create model
     if rank == 0:
         logger.info("Creating model...")
     model = FeatureVLMModel(config).to(device)
@@ -370,32 +342,25 @@ def main():
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        logger.info(f"Model parameters: {total_params:,}")
-        logger.info(f"Trainable parameters: {trainable_params:,}")
+        logger.info(f"Model: {total_params:,} params ({trainable_params:,} trainable)")
+        
+        if use_wandb:
+            wandb.log({
+                "model/total_parameters": total_params,
+                "model/trainable_parameters": trainable_params,
+            })
     
-    # Create optimizer and scheduler
     optimizer = optim.AdamW(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
     scheduler = CosineAnnealingLR(
-        optimizer,
-        T_max=config.num_epochs * len(train_loader),
-        eta_min=1e-6,
+        optimizer, T_max=config.num_epochs * len(train_loader), eta_min=1e-6
     )
     
-    # TensorBoard
-    writer = None
     if rank == 0:
-        output_dir = Path(args.output_dir)
-        tb_dir = output_dir / "logs"
-        writer = SummaryWriter(str(tb_dir))
-        logger.info(f"TensorBoard logs: {tb_dir}")
-    
-    # Training loop
-    if rank == 0:
-        logger.info("=" * 70)
+        logger.info("\n" + "="*70)
         logger.info("STARTING TRAINING")
-        logger.info("=" * 70)
+        logger.info("="*70 + "\n")
     
     best_val_loss = float("inf")
     
@@ -403,56 +368,50 @@ def main():
         if rank == 0:
             logger.info(f"\nEpoch {epoch + 1}/{config.num_epochs}")
         
-        # Set epoch for sampler
         if use_ddp:
             train_loader.sampler.set_epoch(epoch)
         
-        # Train
-        train_loss = train_epoch(model, train_loader, optimizer, device, config, rank)
+        train_loss = train_epoch(model, train_loader, optimizer, device, config, rank, epoch, use_wandb)
         scheduler.step()
         
         if rank == 0:
-            logger.info(f"Train loss: {train_loss:.4f}")
-            if writer:
-                writer.add_scalar("loss/train", train_loss, epoch)
+            logger.info(f"Train Loss: {train_loss:.4f}")
         
-        # Validate every 5 epochs
         if (epoch + 1) % 5 == 0:
-            val_loss = validate(model, val_loader, device, rank)
+            val_loss = validate(model, val_loader, device, rank, epoch, use_wandb)
             
             if rank == 0:
-                logger.info(f"Val loss: {val_loss:.4f}")
-                if writer:
-                    writer.add_scalar("loss/val", val_loss, epoch)
+                logger.info(f"Val Loss: {val_loss:.4f}")
                 
-                # Save best model
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     output_dir = Path(args.output_dir)
                     checkpoint_path = output_dir / "best_model.pt"
                     torch.save(model.state_dict(), checkpoint_path)
                     logger.info(f"✅ Best model saved")
+                    
+                    if use_wandb:
+                        wandb.log({"best_val_loss": best_val_loss})
         
-        # Save checkpoint
         if rank == 0 and (epoch + 1) % 10 == 0:
             output_dir = Path(args.output_dir)
             checkpoint_path = output_dir / f"checkpoint_epoch_{epoch + 1}.pt"
-            state = {"epoch": epoch, "model_state_dict": model.state_dict()}
-            torch.save(state, checkpoint_path)
-            logger.info(f"Checkpoint saved")
+            torch.save(model.state_dict(), checkpoint_path)
+            logger.info(f"Checkpoint saved: epoch {epoch + 1}")
     
-    # Final save
     if rank == 0:
         output_dir = Path(args.output_dir)
         final_model_path = output_dir / "final_model.pt"
         torch.save(model.state_dict(), final_model_path)
         logger.info(f"\n✨ TRAINING COMPLETE!")
-        logger.info(f"Best validation loss: {best_val_loss:.4f}")
+        logger.info(f"Best val loss: {best_val_loss:.4f}")
+        logger.info(f"Output: {output_dir}")
         
-        if writer:
-            writer.close()
+        if use_wandb:
+            wandb.summary["best_val_loss"] = best_val_loss
+            wandb.summary["total_epochs"] = config.num_epochs
+            wandb.finish()
     
-    # Cleanup
     if use_ddp:
         dist.destroy_process_group()
 
