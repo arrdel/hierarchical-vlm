@@ -1,10 +1,23 @@
 """
-Task-Specific Heads
+Task-Specific Heads - Output Layers for Different Tasks
 
-Different prediction heads for various tasks:
-- Action detection
-- Visual question answering
-- Video captioning
+This module provides specialized prediction heads:
+- ActionDetectionHead: Temporal action localization
+- VideoQAHead: Video question answering
+- VideoCaptioningHead: Dense video captioning
+- MultiTaskHead: Unified multi-task interface
 """
 
-__all__ = []
+from .task_heads import (
+    ActionDetectionHead,
+    VideoQAHead,
+    VideoCaptioningHead,
+    MultiTaskHead
+)
+
+__all__ = [
+    'ActionDetectionHead',
+    'VideoQAHead',
+    'VideoCaptioningHead',
+    'MultiTaskHead'
+]

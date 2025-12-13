@@ -113,7 +113,7 @@ If you use HierarchicalVLM, please cite:
 ```bibtex
 @misc{hierarchicalvlm2025,
   title={HierarchicalVLM: Adaptive Long Video Understanding with Efficient Attention and Domain-Specific Adaptation},
-  author={Your Name},
+  author={Adele Chinda},
   year={2025}
 }
 ```
