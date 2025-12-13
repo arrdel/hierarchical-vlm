@@ -244,6 +244,9 @@ def main():
     
     use_wandb = rank == 0 and not args.disable_wandb
     if use_wandb:
+        logger.info("🔐 Logging into Weights & Biases...")
+        wandb.login()  # Login to wandb - required for online logging
+        
         run_name = args.wandb_run_name or f"feature_training_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         wandb.init(
             project=args.wandb_project,
@@ -251,8 +254,9 @@ def main():
             name=run_name,
             config=config.to_dict(),
             tags=["multi-gpu", "activitynet", "features", "DDP", "verbose-logging"],
+            mode="online",  # Explicitly set to online mode (not offline)
         )
-        logger.info(f"✅ W&B: {wandb.run.url}")
+        logger.info(f"✅ W&B Online: {wandb.run.url}")
     else:
         if rank == 0:
             logger.info("W&B disabled")
