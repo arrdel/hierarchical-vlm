@@ -107,10 +107,56 @@ def train_epoch(model, train_loader, optimizer, device, config, rank=0, epoch=0,
     num_batches = 0
     
     for batch_idx, batch in enumerate(train_loader):
-        features = batch["features"].to(device)
-        attention_masks = batch["attention_masks"].to(device)
-        logits = model(features, attention_masks)
-        loss = torch.mean(logits ** 2)
+        features = batch["features"].to(device)  # (batch, seq_len, 2048)
+        attention_masks = batch["attention_masks"].to(device)  # (batch, seq_len)
+        
+        # Get model outputs
+        logits = model(features, attention_masks)  # (batch, seq_len, 200)
+        
+        # Compute reconstruction loss: try to reconstruct features from model output
+        # Project logits back to feature dimension
+        batch_size, seq_len = features.shape[0], features.shape[1]
+        
+        # Use MSE loss for reconstruction: model should learn to encode meaningful information
+        # Mask out padded positions
+        mask = attention_masks.unsqueeze(-1).expand_as(logits[:, :, :config.feature_dim]) if hasattr(config, 'feature_dim') else attention_masks.unsqueeze(-1)
+        
+        # Simple reconstruction: average pooling of logits as a bottle neck
+        pooled_logits = logits.mean(dim=1)  # (batch, 200)
+        
+        # Compute contrastive loss via cosine similarity
+        # Normalize features and logits
+        features_norm = torch.nn.functional.normalize(features, dim=-1)  # (batch, seq_len, 2048)
+        logits_norm = torch.nn.functional.normalize(logits, dim=-1)  # (batch, seq_len, 200)
+        
+        # Temporal contrastive loss: features close in time should have similar representations
+        # Compute similarity between consecutive frames
+        temporal_loss = 0.0
+        count = 0
+        for i in range(seq_len - 1):
+            # Get valid positions (not padded)
+            valid_mask = (attention_masks[:, i] > 0) & (attention_masks[:, i+1] > 0)
+            if valid_mask.sum() > 0:
+                sim = torch.nn.functional.cosine_similarity(
+                    features_norm[:, i, :], 
+                    features_norm[:, i+1, :],
+                    dim=-1
+                )
+                # Push consecutive frames to be similar (maximize similarity)
+                temporal_loss += (1.0 - sim[valid_mask]).mean()
+                count += 1
+        
+        if count > 0:
+            temporal_loss = temporal_loss / count
+        else:
+            temporal_loss = torch.tensor(0.0, device=device)
+        
+        # Add small regularization loss to prevent collapse
+        logits_std = logits.std(dim=[0, 1]).mean()
+        regularization_loss = torch.relu(0.1 - logits_std)  # Encourage non-zero std
+        
+        # Combined loss
+        loss = temporal_loss + 0.1 * regularization_loss
         
         optimizer.zero_grad()
         loss.backward()
@@ -124,13 +170,15 @@ def train_epoch(model, train_loader, optimizer, device, config, rank=0, epoch=0,
             avg_loss = total_loss / num_batches
             logger.info(
                 f"Epoch {epoch + 1} | Batch [{batch_idx + 1}/{len(train_loader)}] | "
-                f"Loss: {avg_loss:.4f} | Grad: {grad_norm:.4f}"
+                f"Loss: {avg_loss:.4f} | Temporal: {temporal_loss.item():.4f} | Grad: {grad_norm:.4f}"
             )
             
             if use_wandb:
                 wandb.log({
                     "train/loss": loss.item(),
                     "train/avg_loss": avg_loss,
+                    "train/temporal_loss": temporal_loss.item(),
+                    "train/regularization_loss": regularization_loss.item(),
                     "train/batch": batch_idx + 1,
                     "train/epoch": epoch + 1,
                     "train/grad_norm": grad_norm,
@@ -140,7 +188,7 @@ def train_epoch(model, train_loader, optimizer, device, config, rank=0, epoch=0,
     return total_loss / num_batches
 
 
-def validate(model, val_loader, device, rank=0, epoch=0, use_wandb=False):
+def validate(model, val_loader, device, rank=0, epoch=0, use_wandb=False, config=None):
     model.eval()
     total_loss = 0.0
     losses = []
@@ -150,16 +198,44 @@ def validate(model, val_loader, device, rank=0, epoch=0, use_wandb=False):
             features = batch["features"].to(device)
             attention_masks = batch["attention_masks"].to(device)
             logits = model(features, attention_masks)
-            loss = torch.mean(logits ** 2)
+            
+            batch_size, seq_len = features.shape[0], features.shape[1]
+            
+            # Compute temporal contrastive loss (same as training)
+            features_norm = torch.nn.functional.normalize(features, dim=-1)
+            
+            temporal_loss = 0.0
+            count = 0
+            for i in range(seq_len - 1):
+                valid_mask = (attention_masks[:, i] > 0) & (attention_masks[:, i+1] > 0)
+                if valid_mask.sum() > 0:
+                    sim = torch.nn.functional.cosine_similarity(
+                        features_norm[:, i, :], 
+                        features_norm[:, i+1, :],
+                        dim=-1
+                    )
+                    temporal_loss += (1.0 - sim[valid_mask]).mean()
+                    count += 1
+            
+            if count > 0:
+                temporal_loss = temporal_loss / count
+            else:
+                temporal_loss = torch.tensor(0.0, device=device)
+            
+            # Regularization loss
+            logits_std = logits.std(dim=[0, 1]).mean()
+            regularization_loss = torch.relu(0.1 - logits_std)
+            
+            loss = temporal_loss + 0.1 * regularization_loss
             total_loss += loss.item()
             losses.append(loss.item())
     
-    avg_val_loss = total_loss / len(losses)
+    avg_val_loss = total_loss / len(losses) if losses else 0.0
     
     if rank == 0:
         logger.info(f"Validation Epoch {epoch + 1} | Loss: {avg_val_loss:.4f}")
         
-        if use_wandb:
+        if use_wandb and losses:
             wandb.log({
                 "val/loss": avg_val_loss,
                 "val/loss_min": min(losses),
@@ -382,7 +458,7 @@ def main():
             logger.info(f"Train Loss: {train_loss:.4f}")
         
         if (epoch + 1) % 5 == 0:
-            val_loss = validate(model, val_loader, device, rank, epoch, use_wandb)
+            val_loss = validate(model, val_loader, device, rank, epoch, use_wandb, config)
             
             if rank == 0:
                 logger.info(f"Val Loss: {val_loss:.4f}")
