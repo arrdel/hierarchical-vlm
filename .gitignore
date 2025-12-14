@@ -79,3 +79,7 @@ LongVLM/
 
 # Trash
 trash/
+report/
+eval_scripts/
+experiments/
+LongVLM/

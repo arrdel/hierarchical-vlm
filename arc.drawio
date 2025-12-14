@@ -1,0 +1,154 @@
+<mxfile host="app.diagrams.net" modified="2024-12-13T00:00:00.000Z" agent="Mozilla/5.0" etag="ABC123" version="22.0.0" type="device">
+  <diagram id="arch_diagram" name="HierarchicalVLM Architecture">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="1">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- Title -->
+        <mxCell id="title" value="HierarchicalVLM: Efficient Long-Context Video Understanding" style="text;html=1;fontSize=24;fontStyle=1;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="20" width="1300" height="50" as="geometry"/>
+        </mxCell>
+        
+        <!-- Subtitle -->
+        <mxCell id="subtitle" value="Hierarchical Temporal Aggregation with Contrastive Learning" style="text;html=1;fontSize=12;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="50" y="70" width="1300" height="30" as="geometry"/>
+        </mxCell>
+        
+        <!-- ============ INPUT LAYER ============ -->
+        <mxCell id="input_label" value="INPUT" style="text;html=1;fontSize=11;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="550" y="110" width="300" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="input" value="Pre-extracted Video Features&#10;250 frames × 2048-D (C3D)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;align=center;fillColor=#E8F4F8;strokeColor=#2196F3;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="475" y="140" width="450" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow -->
+        <mxCell id="arrow1" edge="1" parent="1" source="input" target="projection">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow1_label" value="" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=10;" vertex="1" connectable="0" parent="arrow1">
+          <mxGeometry x="0" y="0" relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- ============ PREPROCESSING ============ -->
+        <mxCell id="preprocess_label" value="PREPROCESSING" style="text;html=1;fontSize=11;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="525" y="220" width="350" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="projection" value="Feature Projection&#10;2048-D → 1024-D&#10;+ LayerNorm + Dropout" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=center;fillColor=#FFF3E0;strokeColor=#FF9800;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="525" y="250" width="350" height="70" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow -->
+        <mxCell id="arrow2" edge="1" parent="1" source="projection" target="transformer">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="transformer" value="Temporal Transformer Encoder&#10;8 attention heads, 6 layers&#10;Self-Attention + FFN (4×1024)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=center;fillColor=#F3E5F5;strokeColor=#9C27B0;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="525" y="350" width="350" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow -->
+        <mxCell id="arrow3" edge="1" parent="1" source="transformer" target="hierarchical">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- ============ PHASE 2: HIERARCHICAL AGGREGATION ============ -->
+        <mxCell id="phase2_label" value="PHASE 2: HIERARCHICAL TEMPORAL AGGREGATION" style="text;html=1;fontSize=11;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#D32F2F;backgroundColor=#FFEBEE;" vertex="1" parent="1">
+          <mxGeometry x="50" y="470" width="1300" height="25" as="geometry"/>
+        </mxCell>
+        
+        <!-- Hierarchical Levels -->
+        <mxCell id="hier_level0" value="Level 0: 250 frames&#10;Full Temporal Resolution" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#E0F2F1;strokeColor=#009688;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="100" y="520" width="200" height="60" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="hier_level1" value="Level 1: 125 frames&#10;Stride 2" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#E0F2F1;strokeColor=#009688;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="330" y="540" width="180" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="hier_level2" value="Level 2: 62 frames&#10;Stride 4" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#E0F2F1;strokeColor=#009688;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="540" y="540" width="160" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="hier_level3" value="Level 3: 31 frames&#10;Stride 8" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#E0F2F1;strokeColor=#009688;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="730" y="540" width="160" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="hier_level4" value="Level 4: 15 frames&#10;Stride 16" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#E0F2F1;strokeColor=#009688;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="920" y="540" width="160" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="hier_level5" value="Level 5: 7 frames&#10;Global Pooling" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#E0F2F1;strokeColor=#009688;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="540" width="150" height="50" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrows between levels -->
+        <mxCell id="arrow_h0_h1" edge="1" parent="1" source="hier_level0" target="hier_level1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_h1_h2" edge="1" parent="1" source="hier_level1" target="hier_level2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_h2_h3" edge="1" parent="1" source="hier_level2" target="hier_level3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_h3_h4" edge="1" parent="1" source="hier_level3" target="hier_level4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_h4_h5" edge="1" parent="1" source="hier_level4" target="hier_level5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- Pooling Method -->
+        <mxCell id="pooling_method" value="Attention-Weighted Pooling&#10;α = softmax(w^T h)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#FCE4EC;strokeColor=#E91E63;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="610" width="200" height="50" as="geometry"/>
+        </mxCell>
+        
+        <!-- Efficiency -->
+        <mxCell id="efficiency_box" value="130x Memory Reduction&#10;O(250²)=62,500 → O(484)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;align=center;fillColor=#F1F8E9;strokeColor=#689F38;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="650" y="610" width="250" height="50" as="geometry"/>
+        </mxCell>
+        
+        <!-- ============ PHASE 1: LOSS FUNCTIONS ============ -->
+        <mxCell id="phase1_label" value="PHASE 1: TEMPORAL CONTRASTIVE LEARNING" style="text;html=1;fontSize=11;fontStyle=1;align=center;fillColor=none;strokeColor=none;fontColor=#1976D2;backgroundColor=#E3F2FD;" vertex="1" parent="1">
+          <mxGeometry x="50" y="690" width="1300" height="25" as="geometry"/>
+        </mxCell>
+        
+        <!-- Contrastive Loss -->
+        <mxCell id="contrastive_loss" value="Temporal Contrastive Loss&#10;L_temporal = Σ(1 - cos(h_i, h_{i+1}))&#10;Adjacent frames stay coherent" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=center;fillColor=#E3F2FD;strokeColor=#1976D2;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="100" y="740" width="320" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Collapse Prevention -->
+        <mxCell id="collapse_loss" value="Collapse Prevention&#10;L_reg = max(0, τ - std_batch(H))&#10;Maintains representation diversity" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=center;fillColor=#FCE4EC;strokeColor=#E91E63;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="740" width="320" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Vision-Language Alignment -->
+        <mxCell id="vlm_loss" value="Vision-Language Alignment (Optional)&#10;L_vlm = -log(exp(sim(v,t)/τ_t) / Σ exp(...))&#10;Semantic alignment with text" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=center;fillColor=#E0F2F1;strokeColor=#009688;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="900" y="740" width="320" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Total Loss -->
+        <mxCell id="total_loss" value="Total Loss = L_temporal + λ_reg×L_reg + λ_vlm×L_vlm" style="rounded=0;whiteSpace=wrap;html=1;fontSize=10;fontStyle=1;align=center;fillColor=#FFF9C4;strokeColor=#FBC02D;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="300" y="850" width="800" height="40" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrows from losses to total -->
+        <mxCell id="arrow_cont_total" edge="1" parent="1" source="contrastive_loss" target="total_loss">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_coll_total" edge="1" parent="1" source="collapse_loss" target="total_loss">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_vlm_total" edge="1" parent="1" source="vlm_loss" target="total_loss">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
