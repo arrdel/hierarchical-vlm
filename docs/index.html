@@ -386,16 +386,19 @@
             <div class="is-size-5 publication-authors">
               <!-- Paper authors -->
               <span class="author-block">
-                <a href="https://github.com/arrdel" target="_blank">Adele Chinda</a><sup>*</sup>,</span>
+                <a href="https://github.com/arrdel" target="_blank">Adele Chinda</a><sup>1</sup>,</span>
               <span class="author-block">
-                <a href="https://github.com" target="_blank">Richmond Azumah</a><sup>*</sup>,</span>
+                <a href="https://github.com" target="_blank">Desire Emeka</a><sup>2</sup>,</span>
               <span class="author-block">
-                <a href="https://github.com" target="_blank">Hemanth Demakethepalli Venkateswara</a></span>
+                <a href="https://github.com" target="_blank">Maryam Koya</a><sup>3</sup>,</span>
+              <span class="author-block">
+                <a href="https://github.com" target="_blank">Nita Ngozi Ezekwem</a><sup>4</sup></span>
             </div>
-
+            <br>
             <div class="is-size-5 publication-authors">
-              <span class="author-block">Georgia State University<br></span>
-              <span class="eql-cntrb"><small><br><sup>*</sup>Indicates Equal Contribution</small></span>
+              <span class="author-block">Georgia State University<sup>1</sup>, Southern Illinois University<sup>2</sup>,
+                Kennesaw State University<sup>3</sup>, East Texas A&M University<sup>4</sup></span>
+
             </div>
 
             <div class="column has-text-centered">
@@ -448,8 +451,16 @@
       <div class="hero-body">
         <img src="static/images/teaser.png" style="width:100%; border-radius: 8px" />
         <h2 class="subtitle has-text-centered" style="margin-top: 1rem;">
-          HierarchicalVLM efficiently models long-context video sequences via hierarchical temporal
-          aggregation combined with temporal contrastive learning and vision-language alignment.
+          <strong>Phase 1 (Temporal Contrastive):</strong> A 6-layer temporal transformer (1024-D, 8 heads) trained with
+          temporal contrastive loss and batch-level collapse-prevention regularization. <strong>Phase 2 (Hierarchical
+            Aggregation):</strong> Attention-weighted multi-scale temporal pooling (250 &rarr; 1
+          tokens, &sim;130&times; memory reduction) with cross-scale consistency constraints.
+          <strong>Phase 3 (Vision–Language, optional):</strong> Projection into a shared 256-D vision–language embedding
+          space
+          for cross-modal alignment.
+          All phases are jointly trainable; Phase 3 is optional. The learned representations support downstream tasks
+          including
+          activity classification, temporal localization, and retrieval.
         </h2>
       </div>
     </div>
