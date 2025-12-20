@@ -1,12 +1,11 @@
 # HierarchicalVLM: Efficient Long-Context Video Understanding
 
-**Adele Chinda,** Richmond Azumah, Hemanth Demakethepalli Venkateswara  
-Georgia State University
+Adele Chinda, Desire Emeka, Maryam Koya, Nita Ngozi Ezekwem
 
 [![Code](https://img.shields.io/badge/💻-Code-black)](https://github.com/arrdel/hierarchical-vlm)
 [![W&B Logs](https://img.shields.io/badge/📊-Logs-orange)](https://wandb.ai/el_chindah/hierarchical-vlm)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Architecture](https://img.shields.io/badge/📐-Architecture-purple)](architecture.drawio)
+[![Architecture](https://img.shields.io/badge/📐-Architecture-purple)](docs/static/images/teaser.png)
 
 ## 🚀 Quick Stats
 
@@ -119,7 +118,6 @@ bash quantitative_evaluation/evaluate_benchmark.sh \
   --data_path datasets/anet/
 ```
 
-📖 **For detailed setup:** See [INSTALL.md](INSTALL.md) | **Reproducibility:** See [REPRODUCIBILITY.md](REPRODUCIBILITY.md)
 
 ## 📚 References
 
