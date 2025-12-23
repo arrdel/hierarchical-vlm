@@ -126,7 +126,7 @@ This work builds on:
 - **Temporal Learning:** MoCo, SimCLR, Temporal Contrastive Learning
 - **Efficient Transformers:** Performer, Mamba, Linear Attention
 
-<!-- ## 📖 Citation
+<!-- ## 📖 Citation 
 
 ```bibtex
 @article{chinda2024hierarchicalvlm,
