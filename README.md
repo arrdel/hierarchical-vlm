@@ -29,12 +29,21 @@ HierarchicalVLM addresses the fundamental challenge of understanding long video 
 **📐 [View Full Architecture Diagram](docs/static/images/teaser.png)**
 
 ### Phase 1️⃣: Temporal Contrastive Learning
-- Enforce similarity between consecutive frames: $\mathcal{L}_{\text{temporal}} = \sum_{i=1}^{T-1} (1 - \cos(\mathbf{h}_i, \mathbf{h}_{i+1}))$
-- Prevent collapse with variance regularization: $\mathcal{L}_{\text{reg}} = \max(0, \tau - \text{std}_{\text{batch}}(\mathbf{H}))$
+- **Temporal Loss:** Enforce similarity between consecutive frames
+  - L_temporal = Σ(1 - cos(h_i, h_{i+1})) for i=1 to T-1
+  - Loss function encourages adjacent frames to have similar embeddings
+- **Collapse Prevention:** Batch-level variance regularization
+  - L_reg = max(0, τ - std_batch(H))
+  - Prevents all frames from collapsing to identical representations
+  - Critical for stable training (without it, collapse occurs within 5 epochs)
 
 ### Phase 2️⃣: Hierarchical Aggregation
-- Attention-weighted pooling: $\mathbf{h}^{(l)}_j = \frac{\sum_{i \in W_j} \alpha_i^{(l)} \mathbf{h}^{(l-1)}_i}{\sum_{i \in W_j} \alpha_i^{(l)}}$
-- Hierarchy: 250 → 125 → 62 → 31 → 15 → 7 → 3 → 1 frames (**130x memory reduction**)
+- **Attention-Weighted Pooling:** Multi-scale temporal reduction
+  - h^(l)_j = Σ(α_i^(l) * h^(l-1)_i) / Σ(α_i^(l))
+  - Learns what to preserve at each hierarchical level
+- **Temporal Pyramid:** 250 → 125 → 62 → 31 → 15 → 7 → 3 → 1 frames
+  - **130× memory reduction** (from 62,500 to 484 operations)
+  - Enables processing of 1000+ frame videos
 
 ### Phase 3️⃣: Vision-Language Alignment (Optional)
 - Align visual and textual embeddings for multimodal learning
